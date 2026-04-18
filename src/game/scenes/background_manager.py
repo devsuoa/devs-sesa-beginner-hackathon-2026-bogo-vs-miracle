@@ -48,12 +48,12 @@ class ParallaxBackground:
             image_height = layer.get_height()
 
             # Vertical movement: slower
-            self.y_offsets[current_set][i] += upward_speed * self.layer_vertical_speeds[i]
+            self.y_offsets[current_set][i] -= upward_speed * self.layer_vertical_speeds[i]
 
             self.x_offsets[current_set][i] += player_dx * self.layer_horizontal_speeds[i]
 
             self.x_offsets[current_set][i] %= image_width
-            self.y_offsets[current_set][i] %= image_height
+            self.y_offsets[current_set][i] = max(-image_height * 0.15, min(image_height * 0.15, self.y_offsets[current_set][i]))
 
     def draw(self, screen, height_meters):
         current_set = self.get_current_set_name(height_meters)

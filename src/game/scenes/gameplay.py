@@ -354,6 +354,7 @@ class GameplayScene:
 
     # ── draw ───────────────────────────────────────────────────────────────
     def draw(self):
+        self.screen.fill((0, 0, 0))
         alt = self.rocket.y
         self.background.draw(self.screen, self.height_meters)
 
