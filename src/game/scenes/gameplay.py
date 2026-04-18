@@ -8,7 +8,7 @@ Controls
            LEFT / RIGHT  →  steer rocket
   DONE  : R or SPACE    →  try again
 """
-
+from .background_manager import ParallaxBackground
 import pygame
 import math
 import random
@@ -99,6 +99,10 @@ class Star:
         self.wy = random.randint(600, 14000)
         self.br = random.randint(110, 255)
         self.r  = random.choice([1, 1, 1, 2])
+
+        self.background = ParallaxBackground(900, 600)
+        self.height_meters = 0
+        self.upward_speed = 0
 
     def draw(self, screen, cam, alpha):
         sy = int(w2sy(self.wy, cam))
@@ -325,9 +329,16 @@ class GameplayScene:
                     if self.shared is not None:
                         self.shared.coins += earned
         self.cam = cam_from_rocket(self.rocket.y)
+        # BACKGROUND SCROLLING PARALLAX
+        if self.player.launched:
+            self.upward_speed = self.rocket.vy
+            self.height_meters += self.upward_speed
+        else:
+            self.upward_speed = 0
+        self.background.update(self.upward_speed, self.height_meters)
 
     # ── draw ───────────────────────────────────────────────────────────────
-    def draw(self):
+    def draw(self, screen):
         alt = self.rocket.y
         self.screen.fill(sky_color(alt))
 
@@ -371,6 +382,12 @@ class GameplayScene:
             self._draw_results()
 
         pygame.display.flip()
+
+        self.background.draw(screen, self.height_meters)
+        # ADD ASTEROIDS ETC IN BETWEEN THESE TWO TO PREVENT BEING OBSCURED BY BACKGROUND
+        # HERE
+
+        self.player.draw(screen)
 
     def _draw_trajectory(self):
         r   = self.rocket
