@@ -16,7 +16,11 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from entities.player import Player
+<<<<<<< HEAD
 from entities.asteroid import Asteroid
+=======
+from entities.coin import CoinManager
+>>>>>>> origin/main
 
 # ─── window / timing ──────────────────────────────────────────────────────────
 W, H = 900, 600
@@ -36,13 +40,13 @@ BURN_RATE  = 28.0    # fuel/s while thrusting
 SPACE_ALT = 7500    # altitude (px) that counts as "space"
 # Early finish (skip waiting for ground): peak must reach this altitude, then you
 # must descend at least MIN_DROP_FROM_PEAK px from that apex — so you fall a bit first.
-SKIP_FALL_MIN_ALT = 8000
+SKIP_FALL_MIN_ALT = 5000
 MIN_DROP_FROM_PEAK = 1000
 
 # screen-y of ground surface when camera is at rest
 GROUND_SY        = H - 100
 # screen-y to keep rocket at when camera scrolls
-ROCKET_TARGET_SY = int(H * 0.38)
+ROCKET_TARGET_SY = int(H * 0.7)
 
 # asteroid timings
 ASTEROID_SPAWN_TIMER = 0.0
@@ -276,21 +280,28 @@ class GameplayScene:
         self.clouds = [Cloud() for _ in range(24)]
 
         self.shared = shared_player
-        self.rocket      = Rocket(shared_player)
-        self.state       = "aiming"    # "aiming" | "flying" | "done"
-        self.cam         = 0.0
+        self.rocket = Rocket(shared_player)
+        self.state = "aiming"    # "aiming" | "flying" | "done"
+        self.cam = 0.0
         self._ended_on_descent = False
 
+<<<<<<< HEAD
         self.asteroids = []
         self.asteroid_spawn_timer = ASTEROID_SPAWN_TIMER
         self.asteroid_spawn_delay = ASTEROID_SPAWN_DELAY
+=======
+
+        self.coin_manager = CoinManager(self.shared, screen_w = W, ground_sy = GROUND_SY)
+
+>>>>>>> origin/main
 
     # ── reset ──────────────────────────────────────────────────────────────
     def reset(self):
         self.rocket.reset()
         self.state = "aiming"
-        self.cam   = 0.0
+        self.cam = 0.0
         self._ended_on_descent = False
+        self.coin_manager.reset()
 
         self.asteroids = []
         self.asteroid_spawn_timer = ASTEROID_SPAWN_TIMER
@@ -310,6 +321,7 @@ class GameplayScene:
             if self.state == "done":
                 if event.key in (pygame.K_r, pygame.K_RETURN, pygame.K_SPACE):
                     self.reset()
+                    self.coin_manager.reset()
         return None
 
     def _launch(self):
@@ -355,6 +367,8 @@ class GameplayScene:
                         self.shared.coins += earned_gold
 
                 self.asteroids = [a for a in self.asteroids if not a.finished]
+
+                self.coin_manager.update(self.rocket)
 
                 drop_from_peak = self.rocket.max_altitude - self.rocket.y
                 skip_long_fall = (
@@ -411,6 +425,8 @@ class GameplayScene:
         # trajectory dots (aiming only)
         if self.state == "aiming":
             self._draw_trajectory()
+
+        self.coin_manager.draw(self.screen, self.cam)
 
         # rocket
         self.rocket.draw(self.screen, self.cam)
