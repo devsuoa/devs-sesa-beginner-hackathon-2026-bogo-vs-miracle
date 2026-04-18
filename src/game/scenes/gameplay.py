@@ -16,7 +16,11 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from entities.player import Player
+<<<<<<< HEAD
+from entities.asteroid import Asteroid
+=======
 from entities.coin import CoinManager
+>>>>>>> origin/main
 
 # ─── window / timing ──────────────────────────────────────────────────────────
 W, H = 900, 600
@@ -43,6 +47,10 @@ MIN_DROP_FROM_PEAK = 1000
 GROUND_SY        = H - 100
 # screen-y to keep rocket at when camera scrolls
 ROCKET_TARGET_SY = int(H * 0.7)
+
+# asteroid timings
+ASTEROID_SPAWN_TIMER = 0.0
+ASTEROID_SPAWN_DELAY = 1.5
 
 # ─── colours ──────────────────────────────────────────────────────────────────
 WHITE  = (255, 255, 255)
@@ -277,9 +285,15 @@ class GameplayScene:
         self.cam = 0.0
         self._ended_on_descent = False
 
+<<<<<<< HEAD
+        self.asteroids = []
+        self.asteroid_spawn_timer = ASTEROID_SPAWN_TIMER
+        self.asteroid_spawn_delay = ASTEROID_SPAWN_DELAY
+=======
 
         self.coin_manager = CoinManager(self.shared, screen_w = W, ground_sy = GROUND_SY)
 
+>>>>>>> origin/main
 
     # ── reset ──────────────────────────────────────────────────────────────
     def reset(self):
@@ -288,6 +302,9 @@ class GameplayScene:
         self.cam = 0.0
         self._ended_on_descent = False
         self.coin_manager.reset()
+
+        self.asteroids = []
+        self.asteroid_spawn_timer = ASTEROID_SPAWN_TIMER
 
     # ── events ─────────────────────────────────────────────────────────────
     def handle_event(self, event):
@@ -313,25 +330,60 @@ class GameplayScene:
         self.rocket.vy = math.cos(rad) * LAUNCH_SPD
         self.state = "flying"
 
+    def _spawn_asteroid(self):
+        spawn_x = random.randint(60, W - 60)
+        spawn_y = self.rocket.y + random.randint(500, 1400)
+
+        asteroid = Asteroid(
+            x = spawn_x,
+            y = spawn_y,              
+            hp = 3
+        )
+        self.asteroids.append(asteroid)
+
     # ── update ─────────────────────────────────────────────────────────────
     def update(self, dt: float):
         keys = pygame.key.get_pressed()
+
         if self.state in ("aiming", "flying"):
             landed = self.rocket.update(dt, keys, self.state)
+
             if self.state == "flying":
+                self.asteroid_spawn_timer += dt
+                if self.asteroid_spawn_timer >= self.asteroid_spawn_delay:
+                    self.asteroid_spawn_timer = 0.0
+                    self._spawn_asteroid()
+
+                for asteroid in self.asteroids:
+                    asteroid.update(dt)
+
+                    # simple rocket collision
+                    if asteroid.alive and asteroid.collides_with_point(self.rocket.x, self.rocket.y, radius=20):
+                        asteroid.take_damage(999, "explosive")
+
+                    # collect gold
+                    earned_gold = asteroid.collect_gold(self.rocket.x, self.rocket.y, radius=30)
+                    if self.shared is not None:
+                        self.shared.coins += earned_gold
+
+                self.asteroids = [a for a in self.asteroids if not a.finished]
+
                 self.coin_manager.update(self.rocket)
+
                 drop_from_peak = self.rocket.max_altitude - self.rocket.y
                 skip_long_fall = (
                     self.rocket.max_altitude >= SKIP_FALL_MIN_ALT
                     and self.rocket.vy < 0
                     and drop_from_peak >= MIN_DROP_FROM_PEAK
                 )
+
                 if landed or skip_long_fall:
                     self._ended_on_descent = bool(skip_long_fall and not landed)
                     self.state = "done"
                     earned = int(self.rocket.max_altitude / 25)
                     if self.shared is not None:
                         self.shared.coins += earned
+
         self.cam = cam_from_rocket(self.rocket.y)
 
     # ── draw ───────────────────────────────────────────────────────────────
@@ -348,6 +400,10 @@ class GameplayScene:
         # clouds
         for c in self.clouds:
             c.draw(self.screen, self.cam)
+
+        # asteroids                   
+        for asteroid in self.asteroids:
+            asteroid.draw(self.screen, lambda wy: w2sy(wy, self.cam))
 
         # ground + launch pad
         gsy = int(w2sy(0, self.cam))
