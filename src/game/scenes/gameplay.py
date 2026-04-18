@@ -350,7 +350,7 @@ class GameplayScene:
         else:
             self.upward_speed = 0.0
 
-        self.background.update(self.upward_speed, 0.05 * self.rocket.vx, self.height_meters)
+        self.background.update(self.upward_speed, 0.003 * self.rocket.vx, 0.005 * self.rocket.vy, self.height_meters)
 
     # ── draw ───────────────────────────────────────────────────────────────
     def draw(self):
@@ -371,14 +371,6 @@ class GameplayScene:
         for asteroid in self.asteroids:
             asteroid.draw(self.screen, lambda wy: w2sy(wy, self.cam))
 
-        # ground + launch pad
-        gsy = int(w2sy(0, self.cam))
-        if gsy < H + 80:
-            pygame.draw.rect(self.screen, GREEN,  (0, gsy, W, H - gsy + 20))
-            pygame.draw.rect(self.screen, DKGRN,  (0, gsy, W, 7))
-            px = int(self.rocket.x)
-            pygame.draw.rect(self.screen, (120, 125, 135), (px - 35, gsy - 8,  70, 8))
-            pygame.draw.rect(self.screen, ( 80,  85,  95), (px -  5, gsy - 22, 10, 14))
 
         # space boundary
         ssy = int(w2sy(SPACE_ALT, self.cam))
