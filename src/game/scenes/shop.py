@@ -32,8 +32,18 @@ class ShopScene:
         self.fuel_img = _load_scaled_button("fuel_button.png", (200, 80))
         self.speed_img = _load_scaled_button("speed_button.png", (200, 80))
 
+        self.pickaxe_imgs = [
+            _load_scaled_button("pickaxe1.png", (200, 80)),
+            _load_scaled_button("pickaxe2.png", (200, 80)),
+            _load_scaled_button("pickaxe3.png", (200, 80)),
+        ]
+
         self.fuel_rect = self.fuel_img.get_rect(topleft=(300, 200))
         self.speed_rect = self.speed_img.get_rect(topleft=(300, 320))
+        self.pickaxe_rect = self.pickaxe_imgs[0].get_rect(topleft=(300, 440))
+
+        if not hasattr(self.player, "pickaxe_upgrades"):
+            self.player.pickaxe_upgrades = 0
 
     def get_fuel_cost(self):
         n = self.player.fuel_upgrade_purchases + 1
@@ -46,6 +56,15 @@ class ShopScene:
         if n == 1:
             return 25
         return int(25 + ((n - 1) ** 2) * 15)
+
+    def get_pickaxe_cost(self):
+        if self.player.pickaxe_upgrades >= 3:
+            return None
+        return 100 + (self.player.pickaxe_upgrades * 10)
+
+    def get_pickaxe_image(self):
+        index = min(self.player.pickaxe_upgrades, 2)
+        return self.pickaxe_imgs[index]
 
     def buy_fuel_upgrade(self):
         cost = self.get_fuel_cost()
@@ -61,13 +80,24 @@ class ShopScene:
             self.player.speed *= 1.1
             self.player.speed_upgrade_purchases += 1
 
+    def buy_pickaxe_upgrade(self):
+        if self.player.pickaxe_upgrades >= 3:
+            return
+
+        cost = self.get_pickaxe_cost()
+        if cost is not None and self.player.coins >= cost:
+            self.player.coins -= cost
+            self.player.pickaxe_upgrades += 1
+
     def handle_event(self, event):
-        """Returns ``\"gameplay\"`` when leaving the shop."""
+        """Returns ``"gameplay"`` when leaving the shop."""
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             if self.fuel_rect.collidepoint(event.pos):
                 self.buy_fuel_upgrade()
             if self.speed_rect.collidepoint(event.pos):
                 self.buy_speed_upgrade()
+            if self.pickaxe_rect.collidepoint(event.pos):
+                self.buy_pickaxe_upgrade()
 
         if event.type == pygame.KEYDOWN:
             if event.key in (
@@ -89,6 +119,7 @@ class ShopScene:
 
         screen.blit(self.fuel_img, self.fuel_rect)
         screen.blit(self.speed_img, self.speed_rect)
+        screen.blit(self.get_pickaxe_image(), self.pickaxe_rect)
 
         screen.blit(
             self.font.render(f"Coins: {self.player.coins}", True, self.text_color),
@@ -106,6 +137,15 @@ class ShopScene:
         )
 
         screen.blit(
+            self.font.render(
+                f"Pickaxe level: {self.player.pickaxe_upgrades}/3",
+                True,
+                self.text_color,
+            ),
+            (20, 140),
+        )
+
+        screen.blit(
             self.font.render(f"Cost: {self.get_fuel_cost()}", True, self.text_color),
             (self.fuel_rect.x, self.fuel_rect.y - 30),
         )
@@ -115,9 +155,16 @@ class ShopScene:
             (self.speed_rect.x, self.speed_rect.y - 30),
         )
 
+        pickaxe_cost = self.get_pickaxe_cost()
+        pickaxe_cost_text = "MAXED" if pickaxe_cost is None else f"Cost: {pickaxe_cost}"
+        screen.blit(
+            self.font.render(pickaxe_cost_text, True, self.text_color),
+            (self.pickaxe_rect.x, self.pickaxe_rect.y - 30),
+        )
+
         hint = pygame.font.SysFont(None, 24).render(
-            "TAB / SPACE / ENTER / P / ESC — Launch   |   Click buttons to upgrade",
+            "TAB / SPACE / ENTER / P / ESC - Launch   |   Click buttons to upgrade",
             True,
             (180, 180, 200),
         )
-        screen.blit(hint, (20, 420))
+        screen.blit(hint, (20, 560))
