@@ -6,7 +6,13 @@ class Player:
         self.y = y
         self.size = size
         self.speed = speed
-        self.color = color
+        self.color = color   
+        self.launched = False  # ← game/ship state
+
+    def launch(self):
+        if not self.launched:
+            self.launched = True
+            print("Launch initiated")  # optional debug
 
     def handle_input(self):
         keys = pygame.key.get_pressed()
