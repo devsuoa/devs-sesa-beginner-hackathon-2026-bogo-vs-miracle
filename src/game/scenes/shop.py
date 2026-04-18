@@ -13,14 +13,17 @@ class ShopScene:
         # --- LOAD IMAGES ---
         self.fuel_img = pygame.image.load("assets/fuel_button.png").convert_alpha()
         self.speed_img = pygame.image.load("assets/speed_button.png").convert_alpha()
+        self.drill_img = pygame.image.load("assets/drill_button.png").convert_alpha()
 
         # Optional resize
         self.fuel_img = pygame.transform.scale(self.fuel_img, (200, 80))
         self.speed_img = pygame.transform.scale(self.speed_img, (200, 80))
+        self.drill_img = pygame.transform.scale(self.drill_img, (200, 80))
 
         # --- POSITION ---
         self.fuel_rect = self.fuel_img.get_rect(topleft=(300, 200))
         self.speed_rect = self.speed_img.get_rect(topleft=(300, 320))
+        self.drill_rect = self.drill_img.get_rect(topleft=(300, 440))
 
     # -------- COSTS --------
 
@@ -31,6 +34,9 @@ class ShopScene:
     def get_speed_cost(self):
         n = self.player.speed_upgrade_purchases + 1
         return int(10 * math.exp(0.5 * n))
+
+
+
 
     # -------- BUY --------
 
@@ -47,6 +53,14 @@ class ShopScene:
             self.player.coins -= cost
             self.player.speed *= 1.1
             self.player.speed_upgrade_purchases += 1
+
+    def buy_drill(self):
+        cost = 10000
+        if self.player.has_drill:
+            return  # Already owned 
+        if self.player.coins >= cost:
+            self.player.coins -= cost
+            self.player.has_drill = True
 
     # -------- INPUT --------
 
