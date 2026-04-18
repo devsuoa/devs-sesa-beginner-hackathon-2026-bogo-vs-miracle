@@ -182,6 +182,7 @@ class Rocket(Player):
             rad           = math.radians(self.angle)
             thrust_scaled = THRUST * (self.speed / 5.0)  # speed=5 is baseline
             self.vx += math.sin(rad) * thrust_scaled * dt
+            
             self.vy += math.cos(rad) * thrust_scaled * dt
             self.fuel = max(0.0, self.fuel - BURN_RATE * dt)
 
@@ -349,7 +350,7 @@ class GameplayScene:
         else:
             self.upward_speed = 0.0
 
-        self.background.update(self.upward_speed, self.height_meters)
+        self.background.update(self.upward_speed, self.rocket.vx, self.height_meters)
 
     # ── draw ───────────────────────────────────────────────────────────────
     def draw(self):

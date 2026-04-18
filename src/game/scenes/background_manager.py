@@ -10,7 +10,7 @@ class ParallaxBackground:
         self.set_names = ["land", "moon"]
 
         self.layer_vertical_speeds = [0.08, 0.15, 0.25, 0.4]
-        self.layer_horizontal_speeds = [0.6, 1.0, 1.6, 2.4]
+        self.layer_horizontal_speeds = [0.05, 0.1, 0.2, 0.35]
 
         self.backgrounds = {}
         self.x_offsets = {}
@@ -40,7 +40,7 @@ class ParallaxBackground:
             return "land"
         return "space"
 
-    def update(self, upward_speed, height_meters):
+    def update(self, upward_speed, player_dx, height_meters):
         current_set = self.get_current_set_name(height_meters)
 
         for i, layer in enumerate(self.backgrounds[current_set]):
@@ -50,11 +50,7 @@ class ParallaxBackground:
             # Vertical movement: slower
             self.y_offsets[current_set][i] += upward_speed * self.layer_vertical_speeds[i]
 
-            # Horizontal movement: faster constant drift
-            self.x_offsets[current_set][i] += self.layer_horizontal_speeds[i]
-
-            if self.x_offsets[current_set][i] >= image_width:
-                self.x_offsets[current_set][i] -= image_width
+            self.x_offsets[current_set][i] += player_dx * self.layer_horizontal_speeds[i]
 
             if self.y_offsets[current_set][i] >= image_height:
                 self.y_offsets[current_set][i] -= image_height
