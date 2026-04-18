@@ -16,11 +16,9 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from entities.player import Player
-<<<<<<< HEAD
+
 from entities.asteroid import Asteroid
-=======
 from entities.coin import CoinManager
->>>>>>> origin/main
 
 # ─── window / timing ──────────────────────────────────────────────────────────
 W, H = 900, 600
@@ -285,15 +283,12 @@ class GameplayScene:
         self.cam = 0.0
         self._ended_on_descent = False
 
-<<<<<<< HEAD
         self.asteroids = []
         self.asteroid_spawn_timer = ASTEROID_SPAWN_TIMER
         self.asteroid_spawn_delay = ASTEROID_SPAWN_DELAY
-=======
 
         self.coin_manager = CoinManager(self.shared, screen_w = W, ground_sy = GROUND_SY)
 
->>>>>>> origin/main
 
     # ── reset ──────────────────────────────────────────────────────────────
     def reset(self):
