@@ -6,8 +6,14 @@ class Player:
         self.y = y
         self.size = size
         self.speed = speed
-        self.color = color   
-        self.launched = False  # ← game/ship state
+        self.color = color
+        self.launched = False
+
+        # Shared progression (shop + flight results)
+        self.coins = 0
+        self.fuel = 100.0  # max fuel capacity; shop upgrades scale this
+        self.fuel_upgrade_purchases = 0
+        self.speed_upgrade_purchases = 0
 
     def launch(self):
         if not self.launched:

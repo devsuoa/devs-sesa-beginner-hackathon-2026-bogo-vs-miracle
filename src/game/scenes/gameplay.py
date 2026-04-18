@@ -32,7 +32,11 @@ LAUNCH_SPD = 90.0    # initial burst speed on launch (px/s)
 MAX_FUEL   = 100.0
 BURN_RATE  = 28.0    # fuel/s while thrusting
 
-SPACE_ALT  = 7500    # altitude (px) that counts as "space"
+SPACE_ALT = 7500    # altitude (px) that counts as "space"
+# Early finish (skip waiting for ground): peak must reach this altitude, then you
+# must descend at least MIN_DROP_FROM_PEAK px from that apex — so you fall a bit first.
+SKIP_FALL_MIN_ALT = 8000
+MIN_DROP_FROM_PEAK = 1000
 
 # screen-y of ground surface when camera is at rest
 GROUND_SY        = H - 100
@@ -156,22 +160,29 @@ def _get_cat(angle: float) -> pygame.Surface:
 
 # ─── Rocket (extends Player with physics) ─────────────────────────────────────
 class Rocket(Player):
-    def __init__(self):
-        super().__init__(x=float(W // 2), y=0.0)
+    def __init__(self, shared_player=None):
+        self._shared = shared_player
+        spd = shared_player.speed if shared_player is not None else 5.0
+        super().__init__(x=float(W // 2), y=0.0, speed=spd)
         self._init_physics()
 
     def _init_physics(self):
         self.vx            = 0.0
         self.vy            = 0.0
         self.angle         = 0.0      # degrees from vertical; + = lean right
-        self.max_fuel      = MAX_FUEL  # upgradeable
+        cap = self._shared.fuel if self._shared is not None else MAX_FUEL
+        self.max_fuel      = max(float(cap), 1.0)
         self.fuel          = self.max_fuel
         self.max_altitude  = 0.0
         self.reached_space = False
         self.thrusting     = False
 
     def reset(self):
-        # preserve upgrades (self.speed, self.max_fuel) across runs
+        # Sync stats from shop progression
+        if self._shared is not None:
+            self.speed = self._shared.speed
+            cap = max(float(self._shared.fuel), 1.0)
+            self.max_fuel = cap
         self.x    = float(W // 2)
         self.y    = 0.0
         self.vx   = 0.0
@@ -200,6 +211,7 @@ class Rocket(Player):
 
         # thrust is always on while fuel remains — player only steers
         self.thrusting = self.fuel > 0
+        fuel_before = self.fuel
 
         if self.thrusting:
             rad           = math.radians(self.angle)
@@ -207,6 +219,10 @@ class Rocket(Player):
             self.vx += math.sin(rad) * thrust_scaled * dt
             self.vy += math.cos(rad) * thrust_scaled * dt
             self.fuel = max(0.0, self.fuel - BURN_RATE * dt)
+
+        # Single frame: fuel just ran out — drop vertical momentum (no upward coast)
+        if fuel_before > 0 and self.fuel <= 0:
+            self.vy = 0.0
 
         # fall faster with no fuel (dead weight)
         effective_gravity = GRAVITY * (2.2 if self.fuel <= 0 else 1.0)
@@ -239,7 +255,7 @@ class Rocket(Player):
 # ─── GameplayScene ────────────────────────────────────────────────────────────
 class GameplayScene:
 
-    def __init__(self, screen=None):
+    def __init__(self, screen=None, shared_player=None):
         if screen is None:
             pygame.init()
             screen = pygame.display.set_mode((W, H))
@@ -254,31 +270,35 @@ class GameplayScene:
         self.stars  = [Star()  for _ in range(320)]
         self.clouds = [Cloud() for _ in range(24)]
 
-        self.rocket      = Rocket()
+        self.shared = shared_player
+        self.rocket      = Rocket(shared_player)
         self.state       = "aiming"    # "aiming" | "flying" | "done"
         self.cam         = 0.0
-        self.total_money = 0
+        self._ended_on_descent = False
 
     # ── reset ──────────────────────────────────────────────────────────────
     def reset(self):
         self.rocket.reset()
         self.state = "aiming"
         self.cam   = 0.0
+        self._ended_on_descent = False
 
     # ── events ─────────────────────────────────────────────────────────────
-    def handle_events(self):
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit(); sys.exit()
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
-                    pygame.quit(); sys.exit()
-                if self.state == "aiming":
-                    if event.key in (pygame.K_SPACE, pygame.K_UP, pygame.K_w):
-                        self._launch()
-                if self.state == "done":
-                    if event.key in (pygame.K_r, pygame.K_RETURN, pygame.K_SPACE):
-                        self.reset()
+    def handle_event(self, event):
+        """Returns ``\"shop\"`` when switching to the shop (blocked while flying)."""
+        if event.type == pygame.KEYDOWN:
+            # Shop / flight toggle — only while aiming or on the results screen, not mid-flight
+            if event.key in (pygame.K_TAB, pygame.K_ESCAPE):
+                if self.state != "flying":
+                    return "shop"
+                return None
+            if self.state == "aiming":
+                if event.key in (pygame.K_SPACE, pygame.K_UP, pygame.K_w):
+                    self._launch()
+            if self.state == "done":
+                if event.key in (pygame.K_r, pygame.K_RETURN, pygame.K_SPACE):
+                    self.reset()
+        return None
 
     def _launch(self):
         rad = math.radians(self.rocket.angle)
@@ -291,10 +311,19 @@ class GameplayScene:
         keys = pygame.key.get_pressed()
         if self.state in ("aiming", "flying"):
             landed = self.rocket.update(dt, keys, self.state)
-            if self.state == "flying" and landed:
-                self.state = "done"
-                earned = int(self.rocket.max_altitude / 100)
-                self.total_money += earned
+            if self.state == "flying":
+                drop_from_peak = self.rocket.max_altitude - self.rocket.y
+                skip_long_fall = (
+                    self.rocket.max_altitude >= SKIP_FALL_MIN_ALT
+                    and self.rocket.vy < 0
+                    and drop_from_peak >= MIN_DROP_FROM_PEAK
+                )
+                if landed or skip_long_fall:
+                    self._ended_on_descent = bool(skip_long_fall and not landed)
+                    self.state = "done"
+                    earned = int(self.rocket.max_altitude / 25)
+                    if self.shared is not None:
+                        self.shared.coins += earned
         self.cam = cam_from_rocket(self.rocket.y)
 
     # ── draw ───────────────────────────────────────────────────────────────
@@ -380,7 +409,8 @@ class GameplayScene:
         # fuel bar
         bx, by, bw, bh = 18, 18, 170, 20
         pygame.draw.rect(self.screen, (40, 40, 55), (bx, by, bw, bh), border_radius=5)
-        fw   = int(bw * r.fuel / MAX_FUEL)
+        denom = max(r.max_fuel, 1.0)
+        fw   = int(bw * r.fuel / denom)
         fcol = GREEN if r.fuel > 35 else (ORANGE if r.fuel > 12 else RED)
         if fw > 0:
             pygame.draw.rect(self.screen, fcol, (bx, by, fw, bh), border_radius=5)
@@ -394,7 +424,11 @@ class GameplayScene:
                          (18, 74))
 
         if self.state == "aiming":
-            h = self.font_sm.render("← →  Aim      SPACE  Launch", True, YELLOW)
+            h = self.font_sm.render(
+                "← →  Aim      SPACE  Launch      TAB / ESC — Shop",
+                True,
+                YELLOW,
+            )
             self.screen.blit(h, (W // 2 - h.get_width() // 2, H - 34))
         elif self.state == "flying":
             h = self.font_sm.render("← →  Steer", True, (200, 200, 200))
@@ -409,7 +443,8 @@ class GameplayScene:
             self.screen.blit(nf, (W - nf.get_width() - 14, 50))
 
         # money display (top right)
-        mt = self.font_md.render(f"$ {self.total_money:,}", True, (80, 220, 120))
+        bal = self.shared.coins if self.shared is not None else 0
+        mt = self.font_md.render(f"$ {bal:,}", True, (80, 220, 120))
         self.screen.blit(mt, (W - mt.get_width() - 14, H - 36))
 
     def _draw_results(self):
@@ -421,7 +456,15 @@ class GameplayScene:
         self.screen.blit(ov, (0, 0))
 
         rows = []
-        if r.reached_space:
+        if self._ended_on_descent:
+            rows.append(
+                (
+                    "RUN COMPLETE  —  high descent (skipped long fall)",
+                    (180, 235, 255),
+                    self.font_lg,
+                )
+            )
+        elif r.reached_space:
             rows.append(("YOU REACHED SPACE!", (255, 240, 50), self.font_lg))
         else:
             rows.append(("BACK ON THE GROUND", WHITE, self.font_lg))
@@ -440,10 +483,12 @@ class GameplayScene:
             )
             rows.append((f"{pct}%  of the way to space  —  {msg}", (180, 180, 180), self.font_sm))
 
-        earned = int(r.max_altitude / 100)
-        rows.append((f"Earned:  ${earned:,}      Total:  ${self.total_money:,}", (80, 220, 120), self.font_md))
+        earned = int(r.max_altitude / 25)
+        total_coins = self.shared.coins if self.shared is not None else earned
+        rows.append((f"Earned:  ${earned:,}      Total:  ${total_coins:,}", (80, 220, 120), self.font_md))
         rows.append(("", None, None))
         rows.append(("SPACE or R  —  Try Again", (150, 220, 150), self.font_sm))
+        rows.append(("TAB / ESC  —  Shop", (160, 180, 210), self.font_sm))
 
         total_h = sum(f.get_height() + 8 for _, _, f in rows if f) + 16
         y = H // 2 - total_h // 2
@@ -459,7 +504,10 @@ class GameplayScene:
     def run(self):
         while True:
             dt = min(self.clock.tick(FPS) / 1000.0, 0.05)
-            self.handle_events()
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit(); sys.exit()
+                self.handle_event(event)
             self.update(dt)
             self.draw()
 
