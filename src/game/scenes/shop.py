@@ -61,8 +61,8 @@ class ShopScene:
 
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
-                from game.scenes.game_scene import GameScene
-                return GameScene(self.player)
+                from .gameplay import GameplayScene
+                return GameplayScene(self.player)
 
     def update(self):
         pass
