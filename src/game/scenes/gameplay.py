@@ -148,21 +148,53 @@ class Cloud:
 
 # ─── Rocket sprite ────────────────────────────────────────────────────────────
 import os as _os
-_ASSET_PATH = _os.path.join(_os.path.dirname(__file__), "../../assets/cat1.png")
+_ASSET_PATH = _os.path.join(_os.path.dirname(__file__), "../../assets/cat")
 
-_cat_raw   = None   # original loaded image
+SLOW_SPEED = 200
+MED_SPEED = 500
+
 _cat_cache = {}     # angle (int degrees) → rotated surface
 
-def _get_cat(angle: float) -> pygame.Surface:
-    global _cat_raw
-    if _cat_raw is None:
-        _cat_raw = pygame.image.load(_ASSET_PATH).convert_alpha()
 
-    key = int(angle)
-    if key not in _cat_cache:
-        _cat_cache[key] = pygame.transform.rotate(_cat_raw, -angle)
+def _load_cat(filename: str):
+    path = os.path.join(_ASSET_PATH, filename)
+    return pygame.image.load(path).convert_alpha()
 
-    return _cat_cache[key]
+
+_cat_idle = None
+_cat_slow = None
+_cat_med = None
+_cat_fast = None
+
+
+def _init_cat():
+    global _cat_idle, _cat_slow, _cat_med, _cat_fast
+    if _cat_idle is None:
+        _cat_idle = _load_cat("cat1.png")
+        _cat_slow = _load_cat("cat2.png")
+        _cat_med = _load_cat("cat3.png")
+        _cat_fast = _load_cat("cat4.png")
+
+
+def _get_cat(angle: float, state: str, speed: float) -> pygame.Surface:
+    _init_cat()
+    if state == "aiming":
+        base = _cat_idle
+        key = "idle"
+    else:
+        spd = abs(speed)
+        if spd < SLOW_SPEED:
+            base, key = _cat_slow, "slow"
+        elif spd < MED_SPEED:
+            base, key = _cat_med, "med"
+        else:
+            base, key = _cat_fast, "fast"
+
+    cache_key = (key, int(angle))
+    if cache_key not in _cat_cache:
+        _cat_cache[cache_key] = pygame.transform.rotate(base, -angle)
+
+    return _cat_cache[cache_key]
 
 
 # ─── Rocket (extends Player with physics) ─────────────────────────────────────
@@ -251,10 +283,11 @@ class Rocket(Player):
 
         return False
 
-    def draw(self, screen, cam):
+    def draw(self, screen, cam, state: str):
         sx  = int(self.x)
         sy  = int(w2sy(self.y, cam))
-        srf = _get_cat(self.angle)
+        total_speed = math.hypot(self.vx, self.vy)
+        srf = _get_cat(self.angle, state, total_speed)
         rect = srf.get_rect(center=(sx, sy))
         screen.blit(srf, rect)
 
@@ -297,6 +330,7 @@ class GameplayScene:
         self.cam = 0.0
         self._ended_on_descent = False
         self.coin_manager.reset()
+        self._start_coins = self.shared.coins if self.shared is not None else 0
 
         self.asteroids = []
         self.asteroid_spawn_timer = ASTEROID_SPAWN_TIMER
@@ -324,6 +358,7 @@ class GameplayScene:
         self.rocket.vx = math.sin(rad) * LAUNCH_SPD
         self.rocket.vy = math.cos(rad) * LAUNCH_SPD
         self.state = "flying"
+        self._start_coins = self.shared.coins if self.shared is not None else 0
 
     def _spawn_asteroid(self):
         spawn_x = random.randint(60, W - 60)
@@ -363,7 +398,7 @@ class GameplayScene:
 
                 self.asteroids = [a for a in self.asteroids if not a.finished]
 
-                self.coin_manager.update(self.rocket)
+                self.coin_manager.update(self.rocket, dt)
 
                 drop_from_peak = self.rocket.max_altitude - self.rocket.y
                 skip_long_fall = (
@@ -424,7 +459,7 @@ class GameplayScene:
         self.coin_manager.draw(self.screen, self.cam)
 
         # rocket
-        self.rocket.draw(self.screen, self.cam)
+        self.rocket.draw(self.screen, self.cam, self.state)
 
         self._draw_hud()
 
@@ -544,8 +579,8 @@ class GameplayScene:
             )
             rows.append((f"{pct}%  of the way to space  —  {msg}", (180, 180, 180), self.font_sm))
 
-        earned = int(r.max_altitude / 25)
         total_coins = self.shared.coins if self.shared is not None else earned
+        earned = total_coins - self._start_coins
         rows.append((f"Earned:  ${earned:,}      Total:  ${total_coins:,}", (80, 220, 120), self.font_md))
         rows.append(("", None, None))
         rows.append(("SPACE or R  —  Try Again", (150, 220, 150), self.font_sm))

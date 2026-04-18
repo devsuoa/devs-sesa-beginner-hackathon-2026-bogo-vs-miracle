@@ -29,10 +29,3 @@ class Player:
             self.x -= self.speed
         if keys[pygame.K_d]:
             self.x += self.speed
-
-    def draw(self, screen):
-        pygame.draw.rect(
-            screen,
-            self.color,
-            (self.x, self.y, self.size, self.size)
-        )

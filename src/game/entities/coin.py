@@ -5,24 +5,26 @@ import os
 COLLECT_RADIUS = 100
 ALT_MIN = 200
 COIN_VALUE = 10
-COIN_SIZE = 100
+COIN_SIZE = 50
 SPAWN_AHEAD = 1000
 SPAWN_RATE = 0.1
 INITIAL_COINS = 5
-COIN_SCREEN_TIME = 1
+ANIMATION_SPEED = 0.3
 
-_ASSET_PATH = os.path.join(os.path.dirname(__file__), "../../assets/coin1.png")
-_coin_sprite = None
+_coin_frames = []
 
 
-def _load_sprite():
-    global _coin_sprite
-    if _coin_sprite is not None:
-        return _coin_sprite
-    if os.path.exists(_ASSET_PATH):
-        img = pygame.image.load(_ASSET_PATH).convert_alpha()
-        _coin_sprite = pygame.transform.smoothscale(img, (COIN_SIZE, COIN_SIZE))
-    return _coin_sprite
+def _load_frames():
+    global _coin_frames
+    if _coin_frames:
+        return
+    frame_files = ["coin1.png", "coin2.png"]
+    for f in frame_files:
+        path = os.path.join(os.path.dirname(__file__), "../../assets/coin", f)
+        if os.path.exists(path):
+            img = pygame.image.load(path).convert_alpha()
+            _coin_frames.append(pygame.transform.smoothscale(img, (COIN_SIZE, COIN_SIZE)))
+    return _coin_frames
 
 
 def _w2sy(world_y, cam, ground_sy, rocket_target_sy=None):
@@ -35,6 +37,8 @@ class Coin:
         self.x = x
         self.y = y
         self.collected = False
+        self.anim_timer = 0.0
+        self.frame = 0
 
 
     def check_collect(self, rocket_x: float, rocket_y: float):
@@ -46,22 +50,27 @@ class Coin:
             self.collected = True
             return True
         return False
+    
+
+    def update(self, dt: float):
+        if not self.collected:
+            self.anim_timer += dt
+            if self.anim_timer >= ANIMATION_SPEED:
+                self.anim_timer = 0.0
+                self.frame = (self.frame + 1) % len(_coin_frames)
 
 
     def draw(self, screen: pygame.Surface, cam: float, ground_sy: int):
         if self.collected:
             return
-        sx = int(self.x)
-        sy = int(_w2sy(self.x, cam, ground_sy))
-        if self.collected:
-            return
+        _load_frames()
         sx = int(self.x)
         sy = int(_w2sy(self.y, cam, ground_sy))
         if sy < -COIN_SIZE or sy > screen.get_height() + COIN_SIZE:
             return
-        srf = _load_sprite()
-        rect = srf.get_rect(center = (sx, sy))
-        screen.blit(srf, rect)
+        if _coin_frames:
+            srf = _coin_frames[self.frame]
+        screen.blit(srf, srf.get_rect(center = (sx, sy)))
 
 
 class CoinManager:
@@ -80,9 +89,10 @@ class CoinManager:
             self.coins.append(Coin(float(wx), wy))
 
 
-    def update(self, rocket):
+    def update(self, rocket, dt: float):
         collected_this_frame = 0
         for coin in self.coins:
+            coin.update(dt)
             if coin.check_collect(rocket.x, rocket.y):
                 collected_this_frame += 1
                 if self.shared is not None:
