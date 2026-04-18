@@ -371,14 +371,12 @@ class GameplayScene:
                     and self.rocket.vy < 0
                     and drop_from_peak >= MIN_DROP_FROM_PEAK
                 )
-
                 if landed or skip_long_fall:
                     self._ended_on_descent = bool(skip_long_fall and not landed)
                     self.state = "done"
                     earned = int(self.rocket.max_altitude / 25)
                     if self.shared is not None:
                         self.shared.coins += earned
-
         self.cam = cam_from_rocket(self.rocket.y)
 
     # ── draw ───────────────────────────────────────────────────────────────
