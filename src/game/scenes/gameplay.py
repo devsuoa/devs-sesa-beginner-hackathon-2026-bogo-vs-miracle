@@ -8,12 +8,13 @@ Controls
            LEFT / RIGHT  →  steer rocket
   DONE  : R or SPACE    →  try again
 """
-from .background_manager import ParallaxBackground
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), "../../"))
+from game.scenes.background_manager import ParallaxBackground
 import pygame
 import math
 import random
-import sys
-import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from entities.player import Player
 
@@ -61,17 +62,8 @@ DKGRN  = ( 20,  80,  20)
 SILVER = (200, 210, 215)
 DKSLV  = (130, 140, 150)
 LBLUE  = (160, 215, 255)
-CLOUD  = (235, 242, 250)
 
-# altitude → background colour stops  (altitude, (r, g, b))
-_SKY = [
-    (    0, (135, 206, 250)),
-    (  800, ( 70, 130, 200)),
-    ( 2500, ( 25,  55, 130)),
-    ( 5000, (  8,  12,  55)),
-    ( 7500, (  2,   2,  15)),
-    (12000, (  0,   0,   4)),
-]
+
 
 
 # ─── helpers ──────────────────────────────────────────────────────────────────
@@ -79,14 +71,7 @@ def lerp(a, b, t):
     return a + (b - a) * t
 
 
-def sky_color(alt):
-    for i in range(len(_SKY) - 1):
-        a0, c0 = _SKY[i]
-        a1, c1 = _SKY[i + 1]
-        if alt <= a1:
-            t = max(0.0, min(1.0, (alt - a0) / (a1 - a0)))
-            return tuple(int(lerp(c0[j], c1[j], t)) for j in range(3))
-    return _SKY[-1][1]
+
 
 
 def w2sy(world_y, cam):
@@ -117,37 +102,6 @@ class Star:
             c = int(self.br * alpha)
             pygame.draw.circle(screen, (c, c, c), (self.wx, sy), self.r)
 
-
-# ─── Cloud ────────────────────────────────────────────────────────────────────
-class Cloud:
-    def __init__(self):
-        self.wx    = random.randint(-100, W + 100)
-        self.wy    = random.randint(100, 1400)
-        self.scale = random.uniform(0.7, 1.5)
-        self._surf = self._bake()
-
-    def _bake(self):
-        sc  = self.scale
-        sw  = int(170 * sc) + 60
-        sh  = int(70  * sc) + 10
-        surf = pygame.Surface((sw, sh), pygame.SRCALPHA)
-        cx, cy = sw // 2, sh // 2
-        r = int(32 * sc)
-        for ox, oy, rx, ry in [
-            (  0,  0, r,           r),
-            (- r,  8, int(r*0.80), int(r*0.75)),
-            (  r,  8, int(r*0.88), int(r*0.75)),
-            (int(-r*0.5), -int(r*0.4), int(r*0.65), int(r*0.65)),
-        ]:
-            pygame.draw.ellipse(surf, (*CLOUD, 200),
-                                (cx + ox - rx, cy + oy - ry, rx * 2, ry * 2))
-        return surf
-
-    def draw(self, screen, cam):
-        sy = int(w2sy(self.wy, cam))
-        if -120 <= sy <= H + 60:
-            screen.blit(self._surf,
-                        (int(self.wx - self._surf.get_width() // 2), sy))
 
 
 # ─── Rocket sprite ────────────────────────────────────────────────────────────
@@ -279,7 +233,7 @@ class GameplayScene:
         self.font_sm = pygame.font.SysFont("Arial", 15)
 
         self.stars  = [Star()  for _ in range(320)]
-        self.clouds = [Cloud() for _ in range(24)]
+
 
         self.shared = shared_player
         self.rocket = Rocket(shared_player)
@@ -292,6 +246,10 @@ class GameplayScene:
         self.asteroid_spawn_delay = ASTEROID_SPAWN_DELAY
 
         self.coin_manager = CoinManager(self.shared, screen_w = W, ground_sy = GROUND_SY)
+
+        self.background = ParallaxBackground(W, H)
+        self.height_meters = 0.0
+        self.upward_speed = 0.0
 
 
     # ── reset ──────────────────────────────────────────────────────────────
@@ -385,17 +343,19 @@ class GameplayScene:
 
         self.cam = cam_from_rocket(self.rocket.y)
         # BACKGROUND SCROLLING PARALLAX
-        if self.player.launched:
-            self.upward_speed = self.rocket.vy
-            self.height_meters += self.upward_speed
+        if self.state == "flying":
+            self.upward_speed = max(0.0, self.rocket.vy)
+            self.height_meters = self.rocket.y
         else:
-            self.upward_speed = 0
+            self.upward_speed = 0.0
+
         self.background.update(self.upward_speed, self.height_meters)
 
     # ── draw ───────────────────────────────────────────────────────────────
-    def draw(self, screen):
+    def draw(self):
         alt = self.rocket.y
-        self.screen.fill(sky_color(alt))
+        self.background.draw(self.screen, self.height_meters)
+
 
         # stars fade in above 1500 m
         star_alpha = max(0.0, min(1.0, (alt - 1500) / 2500))
@@ -403,9 +363,7 @@ class GameplayScene:
             for s in self.stars:
                 s.draw(self.screen, self.cam, star_alpha)
 
-        # clouds
-        for c in self.clouds:
-            c.draw(self.screen, self.cam)
+
 
         # asteroids                   
         for asteroid in self.asteroids:
@@ -442,13 +400,9 @@ class GameplayScene:
         if self.state == "done":
             self._draw_results()
 
+        
         pygame.display.flip()
 
-        self.background.draw(screen, self.height_meters)
-        # ADD ASTEROIDS ETC IN BETWEEN THESE TWO TO PREVENT BEING OBSCURED BY BACKGROUND
-        # HERE
-
-        self.player.draw(screen)
 
     def _draw_trajectory(self):
         r   = self.rocket

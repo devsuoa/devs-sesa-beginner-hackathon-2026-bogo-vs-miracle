@@ -1,3 +1,4 @@
+import os
 import pygame
 
 
@@ -6,9 +7,8 @@ class ParallaxBackground:
         self.screen_width = screen_width
         self.screen_height = screen_height
 
-        self.set_names = ["land", "space", "moon", "void"]
+        self.set_names = ["land", "moon"]
 
-        # Per-layer parallax depth
         self.layer_vertical_speeds = [0.08, 0.15, 0.25, 0.4]
         self.layer_horizontal_speeds = [0.6, 1.0, 1.6, 2.4]
 
@@ -16,29 +16,29 @@ class ParallaxBackground:
         self.x_offsets = {}
         self.y_offsets = {}
 
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        assets_dir = os.path.normpath(
+            os.path.join(base_dir, "../../assets/backgrounds")
+        )
+
         for set_name in self.set_names:
             self.backgrounds[set_name] = []
             self.x_offsets[set_name] = []
             self.y_offsets[set_name] = []
 
             for i in range(1, 5):
-                path = f"assets/backgrounds/{set_name}/{i}.png"
+                path = os.path.join(assets_dir, set_name, f"{i}.png")
                 image = pygame.image.load(path).convert_alpha()
                 image = pygame.transform.scale(image, (screen_width, screen_height))
 
                 self.backgrounds[set_name].append(image)
                 self.x_offsets[set_name].append(0.0)
                 self.y_offsets[set_name].append(0.0)
-
     def get_current_set_name(self, height_meters):
-        if height_meters < 6250:
+        # add other heights in the future when we add background arts
+        if height_meters < 12500:
             return "land"
-        elif height_meters < 12500:
-            return "space"
-        elif height_meters < 18750:
-            return "moon"
-        else:
-            return "void"
+        return "space"
 
     def update(self, upward_speed, height_meters):
         current_set = self.get_current_set_name(height_meters)
