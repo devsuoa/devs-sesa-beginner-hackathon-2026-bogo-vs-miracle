@@ -38,7 +38,7 @@ class ParallaxBackground:
         # add other heights in the future when we add background arts
         if height_meters < 12500:
             return "land"
-        return "space"
+        return "moon"
 
     def update(self, upward_speed, player_dx, height_meters):
         current_set = self.get_current_set_name(height_meters)
@@ -52,8 +52,8 @@ class ParallaxBackground:
 
             self.x_offsets[current_set][i] += player_dx * self.layer_horizontal_speeds[i]
 
-            if self.y_offsets[current_set][i] >= image_height:
-                self.y_offsets[current_set][i] -= image_height
+            self.x_offsets[current_set][i] %= image_width
+            self.y_offsets[current_set][i] %= image_height
 
     def draw(self, screen, height_meters):
         current_set = self.get_current_set_name(height_meters)

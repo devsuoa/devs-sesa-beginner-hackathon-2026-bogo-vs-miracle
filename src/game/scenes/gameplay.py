@@ -350,7 +350,7 @@ class GameplayScene:
         else:
             self.upward_speed = 0.0
 
-        self.background.update(self.upward_speed, self.rocket.vx, self.height_meters)
+        self.background.update(self.upward_speed, 0.05 * self.rocket.vx, self.height_meters)
 
     # ── draw ───────────────────────────────────────────────────────────────
     def draw(self):
