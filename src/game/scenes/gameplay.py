@@ -37,10 +37,6 @@ MAX_FUEL   = 100.0
 BURN_RATE  = 28.0    # fuel/s while thrusting
 
 SPACE_ALT = 7500    # altitude (px) that counts as "space"
-# Early finish (skip waiting for ground): peak must reach this altitude, then you
-# must descend at least MIN_DROP_FROM_PEAK px from that apex — so you fall a bit first.
-SKIP_FALL_MIN_ALT = 5000
-MIN_DROP_FROM_PEAK = 1000
 
 # screen-y of ground surface when camera is at rest
 GROUND_SY        = H - 100
@@ -92,7 +88,10 @@ class Star:
         self.br = random.randint(110, 255)
         self.r  = random.choice([1, 1, 1, 2])
 
+<<<<<<< HEAD
         
+=======
+>>>>>>> origin/main
 
 
     def draw(self, screen, cam, alpha):
@@ -105,21 +104,53 @@ class Star:
 
 # ─── Rocket sprite ────────────────────────────────────────────────────────────
 import os as _os
-_ASSET_PATH = _os.path.join(_os.path.dirname(__file__), "../../assets/cat1.png")
+_ASSET_PATH = _os.path.join(_os.path.dirname(__file__), "../../assets/cat")
 
-_cat_raw   = None   # original loaded image
+SLOW_SPEED = 200
+MED_SPEED = 500
+
 _cat_cache = {}     # angle (int degrees) → rotated surface
 
-def _get_cat(angle: float) -> pygame.Surface:
-    global _cat_raw
-    if _cat_raw is None:
-        _cat_raw = pygame.image.load(_ASSET_PATH).convert_alpha()
 
-    key = int(angle)
-    if key not in _cat_cache:
-        _cat_cache[key] = pygame.transform.rotate(_cat_raw, -angle)
+def _load_cat(filename: str):
+    path = os.path.join(_ASSET_PATH, filename)
+    return pygame.image.load(path).convert_alpha()
 
-    return _cat_cache[key]
+
+_cat_idle = None
+_cat_slow = None
+_cat_med = None
+_cat_fast = None
+
+
+def _init_cat():
+    global _cat_idle, _cat_slow, _cat_med, _cat_fast
+    if _cat_idle is None:
+        _cat_idle = _load_cat("cat1.png")
+        _cat_slow = _load_cat("cat2.png")
+        _cat_med = _load_cat("cat3.png")
+        _cat_fast = _load_cat("cat4.png")
+
+
+def _get_cat(angle: float, state: str, speed: float) -> pygame.Surface:
+    _init_cat()
+    if state == "aiming":
+        base = _cat_idle
+        key = "idle"
+    else:
+        spd = abs(speed)
+        if spd < SLOW_SPEED:
+            base, key = _cat_slow, "slow"
+        elif spd < MED_SPEED:
+            base, key = _cat_med, "med"
+        else:
+            base, key = _cat_fast, "fast"
+
+    cache_key = (key, int(angle))
+    if cache_key not in _cat_cache:
+        _cat_cache[cache_key] = pygame.transform.rotate(base, -angle)
+
+    return _cat_cache[cache_key]
 
 
 # ─── Rocket (extends Player with physics) ─────────────────────────────────────
@@ -187,7 +218,7 @@ class Rocket(Player):
 
         # Single frame: fuel just ran out — drop vertical momentum (no upward coast)
         if fuel_before > 0 and self.fuel <= 0:
-            self.vy = 0.0
+            return True
 
         # fall faster with no fuel (dead weight)
         effective_gravity = GRAVITY * (2.2 if self.fuel <= 0 else 1.0)
@@ -209,10 +240,11 @@ class Rocket(Player):
 
         return False
 
-    def draw(self, screen, cam):
+    def draw(self, screen, cam, state: str):
         sx  = int(self.x)
         sy  = int(w2sy(self.y, cam))
-        srf = _get_cat(self.angle)
+        total_speed = math.hypot(self.vx, self.vy)
+        srf = _get_cat(self.angle, state, total_speed)
         rect = srf.get_rect(center=(sx, sy))
         screen.blit(srf, rect)
 
@@ -239,7 +271,6 @@ class GameplayScene:
         self.rocket = Rocket(shared_player)
         self.state = "aiming"    # "aiming" | "flying" | "done"
         self.cam = 0.0
-        self._ended_on_descent = False
 
         self.asteroids = []
         self.asteroid_spawn_timer = ASTEROID_SPAWN_TIMER
@@ -257,8 +288,8 @@ class GameplayScene:
         self.rocket.reset()
         self.state = "aiming"
         self.cam = 0.0
-        self._ended_on_descent = False
         self.coin_manager.reset()
+        self._start_coins = self.shared.coins if self.shared is not None else 0
 
         self.asteroids = []
         self.asteroid_spawn_timer = ASTEROID_SPAWN_TIMER
@@ -286,15 +317,15 @@ class GameplayScene:
         self.rocket.vx = math.sin(rad) * LAUNCH_SPD
         self.rocket.vy = math.cos(rad) * LAUNCH_SPD
         self.state = "flying"
+        self._start_coins = self.shared.coins if self.shared is not None else 0
 
     def _spawn_asteroid(self):
-        spawn_x = random.randint(60, W - 60)
-        spawn_y = self.rocket.y + random.randint(500, 1400)
-
+        max_tier = min(3, int(self.rocket.y / 2000))
+        tier = random.randint(0, max_tier)
         asteroid = Asteroid(
-            x = spawn_x,
-            y = spawn_y,              
-            hp = 3
+            x=random.randint(60, W - 60),
+            y=self.rocket.y + random.randint(500, 1400),
+            tier=tier
         )
         self.asteroids.append(asteroid)
 
@@ -316,31 +347,22 @@ class GameplayScene:
 
                     # simple rocket collision
                     if asteroid.alive and asteroid.collides_with_point(self.rocket.x, self.rocket.y, radius=20):
-                        asteroid.take_damage(999, "explosive")
-
-                    # collect gold
-                    earned_gold = asteroid.collect_gold(self.rocket.x, self.rocket.y, radius=30)
-                    if self.shared is not None:
-                        self.shared.coins += earned_gold
+                        pickaxe_level = self.shared.pickaxe_upgrade if self.shared else 0
+                        reward = asteroid.try_break(pickaxe_level=pickaxe_level)
+                        if reward and self.shared:
+                            self.shared.coins += reward
+                        elif asteroid.alive:  # couldn't break it — end the run
+                            self.state = "done"
 
                 self.asteroids = [a for a in self.asteroids if not a.finished]
 
-                self.coin_manager.update(self.rocket)
+                self.coin_manager.update(self.rocket, dt)
 
-                drop_from_peak = self.rocket.max_altitude - self.rocket.y
-                skip_long_fall = (
-                    self.rocket.max_altitude >= SKIP_FALL_MIN_ALT
-                    and self.rocket.vy < 0
-                    and drop_from_peak >= MIN_DROP_FROM_PEAK
-                )
-
-                if landed or skip_long_fall:
-                    self._ended_on_descent = bool(skip_long_fall and not landed)
+                if landed:
                     self.state = "done"
                     earned = int(self.rocket.max_altitude / 25)
                     if self.shared is not None:
                         self.shared.coins += earned
-
         self.cam = cam_from_rocket(self.rocket.y)
         # BACKGROUND SCROLLING PARALLAX
         if self.state == "flying":
@@ -386,7 +408,7 @@ class GameplayScene:
         self.coin_manager.draw(self.screen, self.cam)
 
         # rocket
-        self.rocket.draw(self.screen, self.cam)
+        self.rocket.draw(self.screen, self.cam, self.state)
 
         self._draw_hud()
 
@@ -440,13 +462,10 @@ class GameplayScene:
         if fw > 0:
             pygame.draw.rect(self.screen, fcol, (bx, by, fw, bh), border_radius=5)
         pygame.draw.rect(self.screen, WHITE, (bx, by, bw, bh), 2, border_radius=5)
-        self.screen.blit(self.font_sm.render(f"FUEL  {int(r.fuel)}", True, WHITE),
+        self.screen.blit(self.font_sm.render(f"FUEL", True, WHITE),
                          (bx + 5, by + 3))
 
-        self.screen.blit(self.font_md.render(f"ALT  {int(r.y):,} m",            True, WHITE),
-                         (18, 46))
-        self.screen.blit(self.font_sm.render(f"MAX  {int(r.max_altitude):,} m", True, (170, 215, 255)),
-                         (18, 74))
+        self.screen.blit(self.font_md.render(f"ALT  {int(r.y):,} m", True, WHITE), (18, 46))
 
         if self.state == "aiming":
             h = self.font_sm.render(
@@ -481,35 +500,11 @@ class GameplayScene:
         self.screen.blit(ov, (0, 0))
 
         rows = []
-        if self._ended_on_descent:
-            rows.append(
-                (
-                    "RUN COMPLETE  —  high descent (skipped long fall)",
-                    (180, 235, 255),
-                    self.font_lg,
-                )
-            )
-        elif r.reached_space:
-            rows.append(("YOU REACHED SPACE!", (255, 240, 50), self.font_lg))
-        else:
-            rows.append(("BACK ON THE GROUND", WHITE, self.font_lg))
+        rows.append(("BOOM!", (255, 240, 50), self.font_lg))
+        rows.append((f"Altitude: {int(r.max_altitude):,} m", (180, 230, 250), self.font_md))
 
-        rows.append((f"Max altitude:  {int(r.max_altitude):,} m", (180, 230, 255), self.font_md))
-
-        if r.reached_space:
-            rows.append(("Orbit achieved!  🚀", YELLOW, self.font_md))
-        else:
-            msg = (
-                "Nearly there!"  if pct > 80 else
-                "So close!"      if pct > 60 else
-                "Getting there!" if pct > 40 else
-                "Keep trying!"   if pct > 20 else
-                "Off the ground!"
-            )
-            rows.append((f"{pct}%  of the way to space  —  {msg}", (180, 180, 180), self.font_sm))
-
-        earned = int(r.max_altitude / 25)
         total_coins = self.shared.coins if self.shared is not None else earned
+        earned = total_coins - self._start_coins
         rows.append((f"Earned:  ${earned:,}      Total:  ${total_coins:,}", (80, 220, 120), self.font_md))
         rows.append(("", None, None))
         rows.append(("SPACE or R  —  Try Again", (150, 220, 150), self.font_sm))

@@ -38,83 +38,75 @@ ASTEROID_MAX_ROT_SPEED = 90
 ASTEROID_RADIUS_SCALE = 0.35
 BREAK_FRAME_TIME = 0.08
 
-GOLD_DROP_MIN_COUNT = 1
-GOLD_DROP_MAX_COUNT = 3
+TIERS = [
+    {"pickaxe_required": 0, "coin_reward": 50,  "asset_set": "t1"},
+    {"pickaxe_required": 1, "coin_reward": 75, "asset_set": "t2"},
+    {"pickaxe_required": 2, "coin_reward": 150, "asset_set": "t3"},
+    {"pickaxe_required": 3, "coin_reward": 500, "asset_set": "t4"},
+]
 
-GOLD_MIN_X_SPEED = -1.5
-GOLD_MAX_X_SPEED = 1.5
-GOLD_MIN_Y_SPEED = -2.5
-GOLD_MAX_Y_SPEED = -1.0
-GOLD_GRAVITY = 0.12
-GOLD_RADIUS = 6
+TIER_ASSET_SETS = {
+    "t1": {
+        "bases": ["t1/asteroid1.png", "t1/asteroid2.png"],
+        "breaking": [
+            "t1/asteroid1_breaking1.png",
+            "t1/asteroid1_breaking2.png",
+            "t1/asteroid1_breaking3.png",
+            "t1/asteroid2_breaking1.png",
+            "t1/asteroid2_breaking2.png",
+        ],
+    },
+    "t2": {
+        "bases": ["t2/asteroid1.png", "t2/asteroid2.png"],
+        "breaking": [
+            "t2/asteroid1_breaking1.png",
+            "t2/asteroid1_breaking2.png",
+            "t2/asteroid1_breaking3.png",
+            "t2/asteroid2_breaking1.png",
+            "t2/asteroid2_breaking2.png",
+        ],
+    },
+    "t3": {
+        "bases": ["t3/asteroid1.png", "t3/asteroid2.png"],
+        "breaking": [
+            "t3/asteroid1_breaking1.png",
+            "t3/asteroid1_breaking2.png",
+            "t3/asteroid1_breaking3.png",
+            "t3/asteroid2_breaking1.png",
+            "t3/asteroid2_breaking2.png",
+        ],
+    },
+    "t4": {
+        "bases": ["t4/asteroid1.png", "t4/asteroid2.png"],
+        "breaking": [
+            "t4/asteroid1_breaking1.png",
+            "t4/asteroid1_breaking2.png",
+            "t4/asteroid1_breaking3.png",
+            "t4/asteroid2_breaking1.png",
+            "t4/asteroid2_breaking2.png",
+        ],
+    },
+}
 
-GOLD_MAIN_COLOR = (255, 215, 0)
-GOLD_HIGHLIGHT_COLOR = (255, 245, 120)
 
 
-def load_asteroid_variants():
-    variants = []
-
-    for asteroid_set in ASTEROID_ASSET_SETS:
-        base_path = ASTEROID_DIR / asteroid_set["base"]
-        breaking_paths = asteroid_set["breaking"]
-
-        base_image = pygame.image.load(str(base_path)).convert_alpha()
-
-        breaking_frames = []
-        for filename in breaking_paths:
-            frame_path = ASTEROID_DIR / filename
-            frame_image = pygame.image.load(str(frame_path)).convert_alpha()
-            breaking_frames.append(frame_image)
-
-        variants.append(
-            {
-                "base": base_image,
-                "breaking": breaking_frames,
-            }
-        )
-
-    return variants
-
-
-class GoldDrop:
-    def __init__(self, x, y, amount=1):
-        self.x = float(x)
-        self.y = float(y)
-        self.amount = amount
-
-        self.vx = random.uniform(GOLD_MIN_X_SPEED, GOLD_MAX_X_SPEED)
-        self.vy = random.uniform(GOLD_MIN_Y_SPEED, GOLD_MAX_Y_SPEED)
-        self.gravity = GOLD_GRAVITY
-
-        self.radius = GOLD_RADIUS
-        self.collected = False
-
-    def update(self, dt):
-        self.vy += self.gravity
-        self.x += self.vx * FRAME_RATE_SCALE * dt
-        self.y += self.vy * FRAME_RATE_SCALE * dt
-
-    def draw(self, screen, world_to_screen_y):
-        if self.collected:
-            return
-
-        screen_x = int(self.x)
-        screen_y = int(world_to_screen_y(self.y))
-        highlight_radius = max(2, self.radius // 2)
-
-        pygame.draw.circle(screen, GOLD_MAIN_COLOR, (screen_x, screen_y), self.radius)
-        pygame.draw.circle(
-            screen,
-            GOLD_HIGHLIGHT_COLOR,
-            (screen_x - 2, screen_y - 2),
-            highlight_radius,
-        )
-
-    def can_collect(self, player_x, player_y, radius):
-        dx = self.x - player_x
-        dy = self.y - player_y
-        return dx * dx + dy * dy <= radius * radius
+_loaded_variants = {}
+ 
+def _load_tier_assets(asset_set: str) -> dict:
+    if asset_set in _loaded_variants:
+        return _loaded_variants[asset_set]
+    spec = TIER_ASSET_SETS[asset_set]
+    base_images = [
+        pygame.image.load(str(ASTEROID_DIR / f)).convert_alpha()
+        for f in spec["bases"]
+    ]
+    breaking_frames = [
+        pygame.image.load(str(ASTEROID_DIR / f)).convert_alpha()
+        for f in spec["breaking"]
+    ]
+    result = {"bases": base_images, "breaking": breaking_frames}
+    _loaded_variants[asset_set] = result
+    return result
 
 
 class ExplosionAnimation:
@@ -123,143 +115,105 @@ class ExplosionAnimation:
         self.y = float(y)
         self.frames = frames
         self.frame_time = frame_time
-
         self.time_accumulator = 0.0
         self.frame_index = 0
         self.finished = False
-
+ 
     def update(self, dt):
         if self.finished:
             return
-
         if not self.frames:
             self.finished = True
             return
-
         self.time_accumulator += dt
-
         while self.time_accumulator >= self.frame_time and not self.finished:
             self.time_accumulator -= self.frame_time
             self.frame_index += 1
-
             if self.frame_index >= len(self.frames):
                 self.finished = True
-
+ 
     def draw(self, screen, world_to_screen_y):
         if self.finished or not self.frames:
             return
-
         current_frame = self.frames[self.frame_index]
         screen_x = int(self.x)
         screen_y = int(world_to_screen_y(self.y))
-        frame_rect = current_frame.get_rect(center=(screen_x, screen_y))
-
-        screen.blit(current_frame, frame_rect)
+        screen.blit(current_frame, current_frame.get_rect(center=(screen_x, screen_y)))
 
 
 class Asteroid:
-    def __init__(self, x, y, hp=3, variants=None):
+    def __init__(self, x, y, tier: int = 0):
+        self.tier = max(0, min(tier, len(TIERS) - 1))
+        tier_data = TIERS[self.tier]
+ 
         self.x = float(x)
         self.y = float(y)
-        self.hp = hp
-
+        self.coin_reward = tier_data["coin_reward"]
+        self.pickaxe_required = tier_data["pickaxe_required"]
+ 
         self.vx = random.uniform(ASTEROID_MIN_X_SPEED, ASTEROID_MAX_X_SPEED)
         self.vy = random.uniform(ASTEROID_MIN_Y_SPEED, ASTEROID_MAX_Y_SPEED)
-
         self.rotation = random.uniform(0, 360)
         self.rotation_speed = random.uniform(ASTEROID_MIN_ROT_SPEED, ASTEROID_MAX_ROT_SPEED)
-
+ 
         self.alive = True
         self.finished = False
         self.exploding = False
         self.explosion = None
-        self.gold_drops = []
-
-        self.variants = variants if variants is not None else load_asteroid_variants()
-        self.variant = random.choice(self.variants)
-
-        self.base_image = self.variant["base"]
-        self.breaking_frames = self.variant["breaking"]
-
+ 
+        assets = _load_tier_assets(tier_data["asset_set"])
+        self.base_image = random.choice(assets["bases"])  # pick one of the two sprites
+        self.breaking_frames = assets["breaking"]
+ 
         largest_dimension = max(self.base_image.get_width(), self.base_image.get_height())
         self.radius = largest_dimension * ASTEROID_RADIUS_SCALE
-
+ 
+    def can_be_broken_by(self, pickaxe_level: int) -> bool:
+        return pickaxe_level >= self.pickaxe_required
+ 
     def update(self, dt):
-        for gold_drop in self.gold_drops:
-            gold_drop.update(dt)
-
         if self.exploding:
             if self.explosion is not None:
                 self.explosion.update(dt)
                 if self.explosion.finished:
                     self.finished = True
             return
-
         self.x += self.vx * FRAME_RATE_SCALE * dt
         self.y += self.vy * FRAME_RATE_SCALE * dt
         self.rotation += self.rotation_speed * dt
-
+ 
     def draw(self, screen, world_to_screen_y):
-        for gold_drop in self.gold_drops:
-            gold_drop.draw(screen, world_to_screen_y)
-
         if self.exploding:
             if self.explosion is not None:
                 self.explosion.draw(screen, world_to_screen_y)
             return
-
+ 
         rotated_image = pygame.transform.rotate(self.base_image, self.rotation)
         screen_x = int(self.x)
         screen_y = int(world_to_screen_y(self.y))
-        image_rect = rotated_image.get_rect(center=(screen_x, screen_y))
-
-        screen.blit(rotated_image, image_rect)
-
+        rect = rotated_image.get_rect(center=(screen_x, screen_y))
+        screen.blit(rotated_image, rect)
+ 
+        
     def collides_with_point(self, point_x, point_y, radius=0):
         if not self.alive:
             return False
-
         dx = self.x - point_x
         dy = self.y - point_y
-        collision_radius = self.radius + radius
-
-        return dx * dx + dy * dy <= collision_radius * collision_radius
-
-    def take_damage(self, amount, damage_type="normal"):
+        return dx * dx + dy * dy <= (self.radius + radius) ** 2
+ 
+    def try_break(self, pickaxe_level: int = 0):
+        """Try to break the asteroid. Returns coin reward if successful, else 0."""
+        if not self.alive:
+            return 0
+        if not self.can_be_broken_by(pickaxe_level):
+            return 0
+        self.destroy()
+        return self.coin_reward
+ 
+    def destroy(self):
         if not self.alive:
             return
-
-        self.hp -= amount
-
-        if self.hp <= 0:
-            self.destroy(damage_type)
-
-    def destroy(self, damage_type="normal"):
-        if not self.alive:
-            return
-
         self.alive = False
         self.exploding = True
         self.explosion = ExplosionAnimation(self.x, self.y, self.breaking_frames)
-
-        if damage_type == "explosive":
-            drop_count = random.randint(GOLD_DROP_MIN_COUNT, GOLD_DROP_MAX_COUNT)
-            for _ in range(drop_count):
-                self.gold_drops.append(GoldDrop(self.x, self.y, amount=1))
-
-    def collect_gold(self, player_x, player_y, radius=30):
-        collected_amount = 0
-        remaining_gold_drops = []
-
-        for gold_drop in self.gold_drops:
-            if gold_drop.collected:
-                continue
-
-            if gold_drop.can_collect(player_x, player_y, radius):
-                gold_drop.collected = True
-                collected_amount += gold_drop.amount
-            else:
-                remaining_gold_drops.append(gold_drop)
-
-        self.gold_drops = remaining_gold_drops
-        return collected_amount 
