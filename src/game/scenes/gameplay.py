@@ -92,9 +92,8 @@ class Star:
         self.br = random.randint(110, 255)
         self.r  = random.choice([1, 1, 1, 2])
 
-        self.background = ParallaxBackground(900, 600)
-        self.height_meters = 0
-        self.upward_speed = 0
+        
+
 
     def draw(self, screen, cam, alpha):
         sy = int(w2sy(self.wy, cam))
