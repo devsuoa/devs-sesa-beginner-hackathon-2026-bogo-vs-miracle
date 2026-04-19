@@ -261,7 +261,7 @@ class Rocket(Player):
 
         # Single frame: fuel just ran out — drop vertical momentum (no upward coast)
         if fuel_before > 0 and self.fuel <= 0:
-            self.vy = 0.0
+            return True
 
         # fall faster with no fuel (dead weight)
         effective_gravity = GRAVITY * (2.2 if self.fuel <= 0 else 1.0)
@@ -509,13 +509,10 @@ class GameplayScene:
         if fw > 0:
             pygame.draw.rect(self.screen, fcol, (bx, by, fw, bh), border_radius=5)
         pygame.draw.rect(self.screen, WHITE, (bx, by, bw, bh), 2, border_radius=5)
-        self.screen.blit(self.font_sm.render(f"FUEL  {int(r.fuel)}", True, WHITE),
+        self.screen.blit(self.font_sm.render(f"FUEL", True, WHITE),
                          (bx + 5, by + 3))
 
-        self.screen.blit(self.font_md.render(f"ALT  {int(r.y):,} m",            True, WHITE),
-                         (18, 46))
-        self.screen.blit(self.font_sm.render(f"MAX  {int(r.max_altitude):,} m", True, (170, 215, 255)),
-                         (18, 74))
+        self.screen.blit(self.font_md.render(f"ALT  {int(r.y):,} m", True, WHITE), (18, 46))
 
         if self.state == "aiming":
             h = self.font_sm.render(
@@ -550,32 +547,8 @@ class GameplayScene:
         self.screen.blit(ov, (0, 0))
 
         rows = []
-        if self._ended_on_descent:
-            rows.append(
-                (
-                    "RUN COMPLETE  —  high descent (skipped long fall)",
-                    (180, 235, 255),
-                    self.font_lg,
-                )
-            )
-        elif r.reached_space:
-            rows.append(("YOU REACHED SPACE!", (255, 240, 50), self.font_lg))
-        else:
-            rows.append(("BACK ON THE GROUND", WHITE, self.font_lg))
-
-        rows.append((f"Max altitude:  {int(r.max_altitude):,} m", (180, 230, 255), self.font_md))
-
-        if r.reached_space:
-            rows.append(("Orbit achieved!  🚀", YELLOW, self.font_md))
-        else:
-            msg = (
-                "Nearly there!"  if pct > 80 else
-                "So close!"      if pct > 60 else
-                "Getting there!" if pct > 40 else
-                "Keep trying!"   if pct > 20 else
-                "Off the ground!"
-            )
-            rows.append((f"{pct}%  of the way to space  —  {msg}", (180, 180, 180), self.font_sm))
+        rows.append(("BOOM!", (255, 240, 50), self.font_lg))
+        rows.append((f"Altitude: {int(r.max_altitude):,} m", (180, 230, 250), self.font_md))
 
         total_coins = self.shared.coins if self.shared is not None else earned
         earned = total_coins - self._start_coins
