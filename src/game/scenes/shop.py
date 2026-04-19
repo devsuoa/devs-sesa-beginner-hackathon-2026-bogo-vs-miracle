@@ -34,7 +34,7 @@ class ShopScene:
         self.button_size = (200, 80)
 
         if not hasattr(self.player, "pickaxe_upgrades"):
-            self.player.pickaxe_upgrades = 0
+            self.player.pickaxe_upgrade = 0
         if not hasattr(self.player, "fuel_upgrade_purchases"):
             self.player.fuel_upgrade_purchases = 0
         if not hasattr(self.player, "speed_upgrade_purchases"):
@@ -77,12 +77,12 @@ class ShopScene:
         return int(25 + ((n - 1) ** 2) * 15)
 
     def get_pickaxe_cost(self):
-        if self.player.pickaxe_upgrades >= 3:
+        if self.player.pickaxe_upgrade >= 3:
             return None
-        return 100 + (self.player.pickaxe_upgrades * 10)
+        return 100 + (self.player.pickaxe_upgrade * 10)
 
     def get_pickaxe_image(self):
-        index = min(self.player.pickaxe_upgrades, 3)
+        index = min(self.player.pickaxe_upgrade, 3)
         return self.pickaxe_imgs[index]
 
     def buy_fuel_upgrade(self):
@@ -100,13 +100,13 @@ class ShopScene:
             self.player.speed_upgrade_purchases += 1
 
     def buy_pickaxe_upgrade(self):
-        if self.player.pickaxe_upgrades >= 3:
+        if self.player.pickaxe_upgrade >= 3:
             return
 
         cost = self.get_pickaxe_cost()
         if cost is not None and self.player.coins >= cost:
             self.player.coins -= cost
-            self.player.pickaxe_upgrades += 1
+            self.player.pickaxe_upgrade += 1
 
     def handle_event(self, event):
         """Returns 'gameplay' when leaving the shop."""
@@ -169,7 +169,7 @@ class ShopScene:
 
         screen.blit(
             self.font.render(
-                f"Pickaxe level: {self.player.pickaxe_upgrades}/3",
+                f"Pickaxe level: {self.player.pickaxe_upgrade}/3",
                 True,
                 self.text_color,
             ),
