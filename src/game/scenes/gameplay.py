@@ -88,6 +88,10 @@ class Star:
         self.br = random.randint(110, 255)
         self.r  = random.choice([1, 1, 1, 2])
 
+<<<<<<< HEAD
+        
+=======
+>>>>>>> origin/main
 
 
     def draw(self, screen, cam, alpha):
